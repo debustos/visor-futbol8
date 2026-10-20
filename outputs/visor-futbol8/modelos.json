@@ -1,0 +1,30 @@
+[
+  {
+    "file": "yolo11s.onnx",
+    "bytes": 38230549,
+    "sha256": "224f96fab9f301d7fd3de8accf65e19043adf6f4b644bbf50ebb90aa3f9c28f6",
+    "source": "https://github.com/ultralytics/assets/releases/tag/v8.4.0",
+    "purpose": "person detector; exported 736x1280"
+  },
+  {
+    "file": "yolo26n-reid.onnx",
+    "bytes": 9873245,
+    "sha256": "8529c383197ae4c468eda535d1b165f8b4162cf17bf5fbcff49c7cb6455bc0bb",
+    "source": "https://github.com/ultralytics/assets/releases/tag/v8.4.0",
+    "purpose": "generic appearance embedding; not trained on this team"
+  },
+  {
+    "file": "football-ball-detection.onnx",
+    "bytes": 272740109,
+    "sha256": "30b636c1e459577d64cd4192e0226aeffaf8ad6220aa105bbd16c3436a794329",
+    "source": "https://github.com/roboflow/sports/blob/main/examples/soccer/setup.sh",
+    "purpose": "dedicated ball detector; exported 640x640"
+  },
+  {
+    "file": "e2e-spot/checkpoint_088.pt",
+    "bytes": 18068301,
+    "sha256": "2d8376e96198c07f3e73c1712ffb1a4b2524feb4baa609479935c86d6eeb4ba3",
+    "source": "https://github.com/jhong93/e2e-spot-models/tree/main/soccer_rny002gsm_gru_rgb",
+    "purpose": "temporal event proposals; SoccerNet-v2 pretrained"
+  }
+]

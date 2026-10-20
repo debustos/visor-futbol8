@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "sport": "football",
+  "match_format": "futbol_8",
+  "team_uniform": {"outfield":"naranja","goalkeeper":"amarillo"},
+  "source": "Plantilla de dorsales y motes aportada por el usuario en una imagen.",
+  "notes": [
+    "La lista no confirma quién participa en este partido ni cuándo entra o sale.",
+    "Los dorsales no son los IDs T del seguimiento automático.",
+    "Solo Busi cuenta con intervalos de identidad asistida revisados en esta prueba.",
+    "El usuario confirma que Razquin es el portero y viste de amarillo; los demás jugadores visten de naranja.",
+    "El nombre del dorsal 78 se transcribe como lain según la imagen."
+  ],
+  "players": [
+    {"jersey_number":78,"nickname":"lain","position":null,"preferred_foot":null},
+    {"jersey_number":5,"nickname":"mayora","position":null,"preferred_foot":null},
+    {"jersey_number":22,"nickname":"alpha","position":null,"preferred_foot":null},
+    {"jersey_number":14,"nickname":"fernandito","position":null,"preferred_foot":null},
+    {"jersey_number":7,"nickname":"morales","position":null,"preferred_foot":null},
+    {"jersey_number":8,"nickname":"alfaro","position":null,"preferred_foot":null},
+    {"jersey_number":99,"nickname":"juanjo","position":null,"preferred_foot":null},
+    {"jersey_number":11,"nickname":"adri","position":null,"preferred_foot":null},
+    {"jersey_number":17,"nickname":"resu","position":null,"preferred_foot":null},
+    {"jersey_number":12,"nickname":"mante","position":null,"preferred_foot":null},
+    {"jersey_number":30,"nickname":"billy","position":null,"preferred_foot":null},
+    {"jersey_number":41,"nickname":"busi","position":"extremo derecho","preferred_foot":"izquierdo"},
+    {"jersey_number":1,"nickname":"razquin","position":"portero","preferred_foot":null,"uniform_color":"amarillo","source_row_highlight":"amarillo"},
+    {"jersey_number":6,"nickname":"CJ","position":null,"preferred_foot":null},
+    {"jersey_number":16,"nickname":"McCabe","position":null,"preferred_foot":null},
+    {"jersey_number":9,"nickname":"arras","position":null,"preferred_foot":null}
+  ]
+}
