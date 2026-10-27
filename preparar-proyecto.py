@@ -6,7 +6,7 @@ from pathlib import Path
 def prepare(root):
     root = Path(root).resolve()
     app = root / "outputs" / "visor-futbol8"
-    if not (app / "server.py").is_file():
+    if not (app / "f8" / "plataforma" / "server.py").is_file():
         raise SystemExit("No se encuentra el código del visor en esta carpeta.")
     for folder in ("data", "automatic", "media", "training", "aprendizaje"):
         (app / folder).mkdir(exist_ok=True)

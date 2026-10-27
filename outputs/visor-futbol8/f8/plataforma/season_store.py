@@ -91,7 +91,7 @@ class SeasonStore:
         with source.open('rb') as stream:
             for block in iter(lambda:stream.read(8*1024*1024),b''):digest.update(block)
         return str(source),digest.hexdigest(),{'source':str(source),'source_fps':fps,'source_frames':frames,'duration':frames/fps,'width':width,'height':height,'analysis_fps':5,'planned_samples':math.ceil(frames/fps*5),'part':'primera' if 'PRIMERA' in source.name.upper() else 'segunda'}
-    def register(self,value,legacy=False):
+    def register(self,value,legacy=False,*,checked_sources=None):
         if not isinstance(value,dict):raise ValueError('Jornada inválida')
         number=value.get('round')
         if isinstance(number,bool) or not isinstance(number,int) or not 1<=number<=9999:raise ValueError('La jornada debe ser un número entre 1 y 9999')
@@ -105,7 +105,7 @@ class SeasonStore:
             half=entry.get('half')
             if isinstance(half,bool) or not isinstance(half,int) or half not in (1,2) or half in seen:raise ValueError('Partes repetidas o inválidas')
             seen.add(half)
-            source,fingerprint,meta=self.probe(entry.get('source',''))
+            source,fingerprint,meta=(checked_sources or {}).get(entry.get('source')) or self.probe(entry.get('source',''))
             relative='.' if legacy and half==1 else f'jornadas/j{number:03d}/parte-{half}'
             meta['part']='primera' if half==1 else 'segunda'
             direction='up' if legacy and half==1 else 'unknown'

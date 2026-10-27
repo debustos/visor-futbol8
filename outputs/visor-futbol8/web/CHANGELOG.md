@@ -1,5 +1,11 @@
 # Cambios · web
 
+## 2026-10-27 · develop · biblioteca de vídeos
+- Módulo 80 con configuración persistente, estado de incorporación y modelos,
+  ejemplos por intervalos, reproducción y catálogo exportable/importable.
+- La comprobación se consulta sin bloquear las vistas existentes; nuevos registros
+  actualizan la tabla de jornadas. Layout adaptado a pantallas pequeñas.
+
 Una entrada por PR fusionado, la más reciente arriba: fecha, rama y qué cambia para los demás módulos.
 
 ## 2026-10-27 · core/fase-0

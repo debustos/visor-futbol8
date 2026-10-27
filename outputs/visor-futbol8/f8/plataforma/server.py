@@ -172,7 +172,7 @@ def handler_for(host_app):
                     summary=self.season_summary();raw=host_app.season.csv(summary)
                     self.respond_headers(200,'text/csv; charset=utf-8',len(raw),{'Content-Disposition':'attachment; filename="estadisticas-jornadas.csv"'})
                     return self.wfile.write(raw)
-                app=self.scope() if path.startswith(('/api/','/media')) else host_app
+                app=self.scope() if path.startswith(('/api/','/media')) and not path.startswith('/api/season/library') else host_app
                 if path=='/api/bootstrap':return self.json({'token':app.token,'players':list(app.players.values()),'metadata':app.metadata(),'metrics':METRICS,'events':EVENTS,'definitions':DEFINITIONS})
                 if path=='/api/automatic/status':
                     job=self.analysis_for(app)
@@ -236,7 +236,7 @@ def handler_for(host_app):
                 return self.json({'error':'Ruta desconocida'},404)
             except (ValueError,KeyError,FileNotFoundError) as e:return self.json({'error':str(e)},400)
         def do_POST(self):
-            try:app=host_app if urlsplit(self.path).path in ('/api/season/matches','/api/season/analysis') else self.scope()
+            try:app=host_app if urlsplit(self.path).path in ('/api/season/matches','/api/season/analysis') or urlsplit(self.path).path.startswith('/api/season/library') else self.scope()
             except ValueError as e:return self.json({'error':str(e)},400)
             if self.headers.get('X-Review-Token')!=app.token:return self.json({'error':'Sesión de revisión inválida'},403)
             try:
