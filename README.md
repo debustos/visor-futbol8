@@ -34,15 +34,25 @@ Se incluye el trabajo de reentrenamiento: `learning_jobs.py`, `review_learning.p
 Desde la raíz, con las dependencias instaladas:
 
 ```powershell
-.\work\vision-env\Scripts\python.exe -B -m unittest discover -s outputs/visor-futbol8 -p "test_*.py"
+.\work\vision-env\Scripts\python.exe -B -m unittest discover -s outputs/visor-futbol8/tests -t outputs/visor-futbol8
 ```
+
+Los tests no necesitan modelos ni vídeos. Basta con `numpy`, `opencv-python`, `scipy`, `scikit-learn`, `matplotlib` y `pillow`. Es lo que ejecuta GitHub Actions en cada PR.
 
 Consulta `VERIFICACION.md` para el resultado de la comprobación de esta entrega.
 
 ## Estructura
 
-- `outputs/visor-futbol8/`: aplicación, motores y pruebas.
-- `outputs/visor-futbol8/vendor/` y `licenses/`: código de terceros y sus avisos de licencia.
+El trabajo en paralelo se organiza por módulos: consulta [PLAN.md](PLAN.md) antes de abrir una rama.
+
+- `outputs/visor-futbol8/f8/<módulo>/`: código por módulo (core, plataforma, campo, deteccion, balon, identidad, acciones, publicacion, revision). Cada uno declara sus etapas de análisis en `etapas.py`.
+- `outputs/visor-futbol8/tests/<módulo>/`: pruebas de cada módulo.
+- `outputs/visor-futbol8/web/`: interfaz (`index.html`, `style.css`, `modulos/NN-*.js`).
+- `outputs/visor-futbol8/evaluacion/`: medición de acierto en vídeo (en preparación).
+- `outputs/visor-futbol8/legacy/`: código retirado, no se ejecuta.
+- `outputs/visor-futbol8/f8/acciones/vendor/` y `licenses/`: código de terceros y sus avisos de licencia.
+- `docs/peticiones/`: peticiones de cambio entre módulos. `docs/historico/`: informes de iteraciones anteriores.
+- Para arrancar el servidor a mano, desde `outputs/visor-futbol8`: `python -m f8.plataforma.server`.
 - `preparar-proyecto.py`: preparación local sin datos del partido.
 - `ABRIR-VISOR.cmd`: acceso al visor en Windows.
 - `work/`: entorno, modelos y cachés locales; excluida de Git.

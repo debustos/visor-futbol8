@@ -32,6 +32,11 @@ Situación de partida: unos 60 módulos Python, 7 JS y 14 tests en una sola carp
 
 ### 2.1 Fase 0 · Reestructuración (un único PR, sin cambios funcionales)
 
+> **Estado: hecha en la rama `core/fase-0`.** Resultado: 208 tests OK (los 200 previos sin cambios de lógica + 8 de los registros) y servidor arrancado con `python -m f8.plataforma.server`. Diferencias respecto a los pasos de abajo:
+> - `upgrade_v3.py` y `visual_memory.py` **no** van a `legacy/`: la etapa `memory` del pipeline los usa. Están en `f8/identidad/`.
+> - Los contratos (paso 12 / §4) se han inventariado en `f8/core/contratos/README.md`. Los esquemas `.schema.json` y su validación quedan como primera tarea de core en la Fase 1 (§7.1).
+> - No se ha repetido el análisis del fragmento de 6 s, porque esta máquina no tiene `work/` (modelos). **Hay que repetirlo antes de fusionar**, en el equipo que tiene los modelos: `.\reanalizar.ps1 -Jornada <aislada> -Parte 1`.
+
 Reglas del PR de Fase 0:
 - Usar solo `git mv` para que se conserve el historial. No reescribir lógica.
 - Los ~200 tests deben pasar **antes y después** con el mismo resultado.
@@ -71,15 +76,17 @@ Raíz de código: `outputs/visor-futbol8/`. Cada módulo tiene su carpeta en `f8
 | **plataforma** | `f8/plataforma/` | `server`, `season_store`, `analysis_jobs`, `analysis_worker`, `registrar_jornada`, `domain`, `prepare_video`*, `make_playback` | _por asignar_ |
 | **deteccion** | `f8/deteccion/` | `analyze_automatic` (scan), `Detector`, `MemoryTracker`, `kit`, `appearance`, `identity_stitch` | _por asignar_ |
 | **balon** | `f8/balon/` | `refine_ball`, `adaptive_ball`, `native_ball`, `ball_tracker`, `ball_continuity`, `pose_contacts`, `select_ball` | _por asignar_ |
-| **identidad** | `f8/identidad/` | `read_jersey_text`, `jersey_font`, `dorsal_guard`, `reference_bank`, `reference_sampling`, `far_identity`, `trajectory_identity`, `identity_recovery`, `visual_memory_v5`, `extract_appearance_parts`, `repair_identity_v5`, `contact_identity`, `jersey_vote` | _por asignar_ |
+| **identidad** | `f8/identidad/` | `read_jersey_text`, `jersey_font`, `dorsal_guard`, `reference_bank`, `reference_sampling`, `far_identity`, `trajectory_identity`, `identity_recovery`, `visual_memory`, `visual_memory_v5`, `upgrade_v3`, `extract_appearance_parts`, `repair_identity_v5`, `contact_identity`, `dorsales` (`jersey_vote`, `number_region`) | _por asignar_ |
 | **acciones** | `f8/acciones/` | `sequence_engine`, `pass_engine`, `ball_actions`, `automatic_fusion`, `temporal_actions`, `visual_shots`, `action_quality`, `foot_contacts`, `vendor/spot/` | _por asignar_ |
 | **campo** | `f8/campo/` | `pitch_geometry`, `goal_geometry`, `Registrar`, `camera_step`, `project`, `prepare_video`* | _por asignar_ |
 | **publicacion** | `f8/publicacion/` | `commit_v5`, `analytics_v3`, `presence_engine`, `make_gallery`, `export_heatmaps`, `validate_v5` | _por asignar_ |
 | **revision** | `f8/revision/` | `analytics_review`, `learning_jobs`, `review_learning` | _por asignar_ |
-| **web** | `web/` | `index.html`, `style.css`, `app.js`, `season-ui.js`, `automatic-ui.js`, `uncertainty-ui.js`, `action-diagnostics.js`, `native-detail.js`, `learning-ui.js` | _por asignar_ |
+| **web** | `web/` | `index.html`, `style.css`, `modulos/10-app.js` … `modulos/70-learning-ui.js` | _por asignar_ |
 | **evaluacion** (nuevo) | `evaluacion/` | Nada de momento: conjunto de jugadas etiquetadas y medición de acierto | _por asignar_ |
 
 \* `prepare_video` va en **campo**, porque calcula la proyección. La plataforma solo lo invoca como etapa.
+
+`automatic_core.py` se ha dividido así: `core/io.py` (`write_json`, `ort_session`, `crop`, `iou`), `deteccion/modelos.py` (`Detector`, `Encoder`, `MemoryTracker`, `kit`, `appearance`), `campo/proyeccion.py` (`project`, `Registrar`, `camera_step`), `identidad/dorsales.py`, `balon/seleccion.py` (`select_ball`), `acciones/contactos.py` (`foot_contacts`, `infer_possession`, `action_candidates`) y `publicacion/alineacion_basica.py` (`infer_changes`). Las métricas están en `core/metricas.py`. `f8/automatic_core.py` solo reexporta por compatibilidad: no lo uses en código nuevo.
 
 Una persona puede llevar varios módulos. Lo que no puede pasar es que **dos ramas activas toquen el mismo módulo** salvo acuerdo explícito entre ellas.
 
@@ -87,7 +94,7 @@ Una persona puede llevar varios módulos. Lo que no puede pasar es que **dos ram
 
 ## 4. Contratos entre módulos
 
-Los módulos de visión ya se comunican por archivos JSON, y eso es lo que permite trabajar en paralelo. La Fase 0 los documenta como esquemas en `f8/core/contratos/<nombre>.schema.json`. Cada módulo valida en sus tests que lo que escribe cumple el esquema.
+Los módulos de visión ya se comunican por archivos JSON, y eso es lo que permite trabajar en paralelo. El inventario con sus campos está en [`f8/core/contratos/README.md`](outputs/visor-futbol8/f8/core/contratos/README.md). En la Fase 1 se convertirá en esquemas `f8/core/contratos/<nombre>.schema.json`, y cada módulo validará en sus tests que lo que escribe los cumple.
 
 | Contrato | Lo escribe | Lo leen |
 |---|---|---|
@@ -119,18 +126,14 @@ ETAPAS = [
 ]
 ```
 
-`f8/plataforma/pipeline.py` reúne todas las `ETAPAS` y las ordena por `orden`. Cada módulo usa su **rango reservado** y nadie edita una lista común:
+`f8/plataforma/pipeline.py` reúne todas las `ETAPAS` y las ordena por `orden`, así que nadie edita una lista común.
 
-| Rango | Módulo |
-|---|---|
-| 100–199 | campo (preparación) / deteccion |
-| 200–299 | balon |
-| 300–399 | identidad |
-| 400–499 | acciones |
-| 500–599 | publicacion |
-| 900–999 | plataforma (reproducción, cierre) |
+**`orden` es la posición global en todo el pipeline, no un rango por módulo.** Las etapas de distintos módulos están intercaladas, porque cada una consume lo que produjo la anterior (por ejemplo, balón ejecuta las posiciones 50, 90, 100 y 170). Las 24 etapas actuales van de 10 en 10 (10 = `prepare`, …, 240 = `playback`).
 
-Las etapas con el mismo prefijo de rango se ejecutan en orden numérico. Si una etapa depende de la salida de otro módulo, lo indica en un comentario con el contrato concreto (§4). Para intercalar una etapa entre dos de otro módulo (hoy `dorsal_guard` se ejecuta antes y después de `native_ball`) se usan números intermedios del propio rango de identidad. Si eso no basta, se abre una petición.
+- Para añadir una etapa, elige un número **libre entre sus vecinas** (por ejemplo, 175 entre `native_ball` y `dorsal_guard_final`) y declara en un comentario qué contrato (§4) necesita.
+- No renumeres etapas existentes.
+- Un test (`tests/plataforma/test_registros.py`) rechaza órdenes o claves repetidos, comprueba que cada etapa ejecuta código de su propio módulo y guarda el orden actual. Si cambias el orden a propósito, actualiza ese test en el mismo PR y explica por qué.
+- Si dos PR eligen el mismo número, el segundo lo detecta en los tests y escoge otro.
 
 ### 5.2 Registro de rutas HTTP
 
@@ -144,9 +147,9 @@ RUTAS = {('GET', r'/api/review/queue'): lambda app, req: app.review_engine.queue
 
 ### 5.3 Frontend por módulo
 
-- Cada vista tiene su archivo en `web/modulos/<vista>.js` y `web/modulos/<vista>.css`.
-- `index.html` carga una lista declarada en `web/modulos.json`. Una línea por archivo y en orden alfabético reduce los conflictos a líneas independientes.
-- El cache-busting `?v=N`, que hoy se edita a mano en `index.html`, se sustituye por un hash que calcula el servidor. Así deja de ser un punto de conflicto.
+- Cada vista tiene su archivo en `web/modulos/NN-<vista>.js` (y opcionalmente `NN-<vista>.css`).
+- `index.html` no lista los scripts: tiene un marcador `<!--modulos-->` y el servidor (`f8/plataforma/paginas.py`) inserta todos los archivos de `web/modulos/` **en orden de nombre**. El prefijo `NN` fija el orden de carga (`10-app.js` define lo que usan los demás). Para añadir una vista basta con crear un archivo nuevo con un número libre, sin editar `index.html`.
+- La versión `?v=` la calcula el servidor con un hash del contenido. Ya no se edita a mano.
 
 ### 5.4 Peticiones entre módulos
 
@@ -190,8 +193,8 @@ Las prioridades salen de los informes actuales: balón localizado en el 48,6 % d
 Cada tarea indica su **criterio de aceptación**. P1 = prioridad alta.
 
 ### 7.1 core (integrador)
-- P1. Ejecutar la Fase 0 completa.
-- P1. `f8/core/paths.py`, `f8/core/metricas.py` y los esquemas de `f8/core/contratos/`.
+- ~~P1. Ejecutar la Fase 0 completa~~ (rama `core/fase-0`; falta la comprobación con modelos indicada en §2.1).
+- P1. Esquemas `f8/core/contratos/<nombre>.schema.json` a partir del inventario, y un helper de validación para los tests de cada módulo.
 - P2. Borrar el shim `automatic_core.py` cuando ningún módulo lo importe.
 - **No hace**: lógica de visión ni de negocio.
 
@@ -203,7 +206,7 @@ Cada tarea indica su **criterio de aceptación**. P1 = prioridad alta.
   - `App.export()` con `'part':'primera'` fijo;
   - `seed_current` asume la jornada 2 y busca `SEGUNDA PARTE.MP4`;
   - `probe()` deduce la parte de si el nombre contiene "PRIMERA".
-- P1. `reanalizar.ps1` debe usar el mismo pipeline que el botón (en coordinación con core durante la Fase 0).
+- ~~P1. `reanalizar.ps1` debe usar el mismo pipeline que el botón~~ (hecho en la Fase 0: `python -m f8.plataforma.analysis_worker --round N --half M`).
 - P2. Registro de rutas (§5.2) y separar `server.py`, que hoy tiene ~60 rutas en un solo `route()`.
 - P2. Comprobación de que los modelos de `modelos.json` están presentes antes de encolar (verificando los SHA-256), con un error claro.
 - P3. Instalación desde cero comprobada en un equipo limpio (pendiente según `VERIFICACION.md`).

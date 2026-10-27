@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# LF in the repository and in every working copy, so a Windows checkout never
+# rewrites whole files (PLAN.md §5.5). Windows-only scripts keep CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf

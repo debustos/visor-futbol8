@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  unittest:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: outputs/visor-futbol8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Without torch, easyocr or model weights: tests must not need work/ (PLAN.md §6).
+      - name: Install light dependencies
+        run: python -m pip install numpy==2.5.3 opencv-python-headless==5.0.0.93 scipy==1.18.1 scikit-learn==1.9.1 matplotlib==3.11.2 pillow==12.3.0
+      - name: Run tests
+        run: python -B -m unittest discover -s tests -t .

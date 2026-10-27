@@ -1,0 +1,39 @@
+# Responsables por módulo (PLAN.md §3). Cada carpeta exige la aprobación de su responsable.
+# Mientras no se asigne a nadie, el responsable es el propietario del repositorio.
+# Sustituye @debustos por el usuario de GitHub de cada responsable; la última regla que coincide gana.
+
+*                                       @debustos
+
+# core e integración
+/PLAN.md                                @debustos
+/.github/                               @debustos
+/outputs/visor-futbol8/f8/core/         @debustos
+/outputs/visor-futbol8/f8/automatic_core.py @debustos
+
+/outputs/visor-futbol8/f8/plataforma/   @debustos
+/outputs/visor-futbol8/tests/plataforma/ @debustos
+/outputs/visor-futbol8/*.ps1            @debustos
+
+/outputs/visor-futbol8/f8/campo/        @debustos
+/outputs/visor-futbol8/tests/campo/     @debustos
+
+/outputs/visor-futbol8/f8/deteccion/    @debustos
+/outputs/visor-futbol8/tests/deteccion/ @debustos
+
+/outputs/visor-futbol8/f8/balon/        @debustos
+/outputs/visor-futbol8/tests/balon/     @debustos
+
+/outputs/visor-futbol8/f8/identidad/    @debustos
+/outputs/visor-futbol8/tests/identidad/ @debustos
+
+/outputs/visor-futbol8/f8/acciones/     @debustos
+/outputs/visor-futbol8/tests/acciones/  @debustos
+
+/outputs/visor-futbol8/f8/publicacion/  @debustos
+/outputs/visor-futbol8/tests/publicacion/ @debustos
+
+/outputs/visor-futbol8/f8/revision/     @debustos
+/outputs/visor-futbol8/tests/revision/  @debustos
+
+/outputs/visor-futbol8/web/             @debustos
+/outputs/visor-futbol8/evaluacion/      @debustos
