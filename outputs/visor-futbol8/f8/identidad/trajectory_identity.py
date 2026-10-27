@@ -9,7 +9,7 @@ from bisect import bisect_right
 import math
 from f8.identidad.identity_recovery import camera_offsets
 OWN = {'orange', 'keeper'}
-HARD = {'jersey_vote', 'review_reference', 'uniform_role', 'manual_review'}
+HARD = {'jersey_vote', 'review_reference', 'uniform_role', 'manual_review', 'local_dorsal_guard'}
 LEVEL = {'manual_review': 5, 'review_reference': 4, 'jersey_vote': 3,
          'uniform_role': 3, 'calibrated_appearance': 2, 'visual_memory': 2,
          'resolution_reference_bank': 2, 'scale_sequence_memory': 2, 'local_dorsal_guard': 4, 'motion_memory': 1, 'bidirectional_memory': 1}

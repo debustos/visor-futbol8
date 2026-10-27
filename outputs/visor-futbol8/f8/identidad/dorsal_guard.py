@@ -1,8 +1,53 @@
 """Recheck clear local dorsals before trusting inherited track-level identities."""
 from collections import defaultdict,Counter
-import json
+import json,hashlib
+from pathlib import Path
+from importlib.metadata import version,PackageNotFoundError
 
 SOURCES={'full_jersey','local_dorsal_recheck','verified_training_reference'}
+
+def recheck_fingerprint(source,scan,model_dir=None):
+    source=Path(source);stat=source.stat()
+    packages={}
+    for name in ('easyocr','torch','opencv-python','opencv-python-headless'):
+        try:packages[name]=version(name)
+        except PackageNotFoundError:packages[name]=None
+    return {'source':str(source.resolve()),'size':stat.st_size,'mtime_ns':stat.st_mtime_ns,
+            'scan_sha256':hashlib.sha256(Path(scan).read_bytes()).hexdigest(),
+            'reader_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'packages':packages,
+            'models':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(Path(model_dir).glob('*.pth'))} if model_dir else {}}
+
+def load_recheck_cache(path,fingerprint):
+    try:
+        saved=json.loads(Path(path).read_text(encoding='utf8'))
+        if isinstance(saved,dict) and saved.get('fingerprint')==fingerprint and isinstance(saved.get('observations'),dict):return saved['observations']
+    except (OSError,ValueError):pass
+    return {}
+
+def recheck_key(r,b):
+    # Dense detections may change even when the base scan is the same.
+    return json.dumps([r['frame'],r['time'],str(b['id']),b['box']],separators=(',',':'))
+
+def cached_recheck(observations,r,b,read):
+    key=recheck_key(r,b)
+    if key in observations:return observations[key],True
+    result=read(r,b)
+    # Cache a successful empty OCR result, but retry decode failures next time.
+    if result is not None:observations[key]=result
+    return result or [],False
+
+def read_local_dorsal(cap,reader,r,b):
+    import cv2,re
+    cap.set(cv2.CAP_PROP_POS_FRAMES,r['frame']);ok,img=cap.read()
+    if not ok:return None
+    x1,y1,x2,y2=map(round,b['box']);im=img[max(0,y1):y2,max(0,x1):x2];h,w=im.shape[:2]
+    if not h or not w:return None
+    top=int(h*.08);torso=im[top:int(h*.62)];scale=max(3,min(5,240/max(torso.shape[0],1)));torso=cv2.resize(torso,None,fx=scale,fy=scale);result=[]
+    for box,text,score in reader.readtext(torso,detail=1,allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',text_threshold=.4,low_text=.25,link_threshold=.25,canvas_size=640,mag_ratio=1):
+        token=re.sub('[^a-zA-Z0-9]','',text);ys=[p[1]/scale+top for p in box];rh=(max(ys)-min(ys))/h;ry=sum(ys)/4/h
+        if token.isdigit() and score>=.8 and .08<=rh<=.3 and .17<ry<.58:
+            v={'text':token,'score':float(score),'time':r['time'],'frame':r['frame'],'localized':True,'source':'local_dorsal_recheck'};result.append({'track_id':b['id'],'readings':[v]})
+    return result
 
 def attach_readings(records,evidence):
     index={(r.get('frame'),str(b['id'])):b for r in records for b in r['tracks']}
@@ -61,8 +106,7 @@ def apply_guard(records):
     return {'version':10,'checked_contexts':len(contexts),'changes':changes,'policy':'Local independent dorsal frames override inherited identity; a single clear contradiction suspends identity; manual corrections are preserved.'}
 
 def main():
-    import argparse,cv2,re,torch,easyocr
-    from pathlib import Path
+    import argparse,cv2
     from f8.core.runtime_context import ROOT,WORK,CACHE,SOURCE
     from f8.core.io import write_json,iou
     parser=argparse.ArgumentParser();parser.add_argument('--records');parser.add_argument('--output');args=parser.parse_args()
@@ -77,8 +121,16 @@ def main():
             for v in b.get('dorsal_observations',[]):
                 if b.get('player_id') and b['player_id']!='orange-'+str(v['number']) and v['score']>=.97:triggers[cid]=v['time']
     print(json.dumps({'stage':'dorsal_guard','conflicting_contexts':len(triggers)}),flush=True)
+    cache_stats={'reused_observations':0,'read_observations':0}
     if triggers:
-        torch.set_num_threads(5);reader=easyocr.Reader(['en'],gpu=False,model_storage_directory=str(WORK/'automatic-probe/ocr-models'),user_network_directory=str(WORK/'automatic-probe/ocr-networks'),verbose=False);cap=cv2.VideoCapture(SOURCE);rechecks=[]
+        fingerprint=recheck_fingerprint(SOURCE,CACHE/'scan.json',WORK/'automatic-probe/ocr-models');cache_path=CACHE/'dorsal-recheck-cache.json';observations=load_recheck_cache(cache_path,fingerprint)
+        reader=None;cap=None;rechecks=[]
+        def read(r,b):
+            nonlocal reader,cap
+            if reader is None:
+                import torch,easyocr
+                torch.set_num_threads(5);reader=easyocr.Reader(['en'],gpu=False,model_storage_directory=str(WORK/'automatic-probe/ocr-models'),user_network_directory=str(WORK/'automatic-probe/ocr-networks'),verbose=False);cap=cv2.VideoCapture(SOURCE)
+            return read_local_dorsal(cap,reader,r,b)
         for i,(cid,t) in enumerate(triggers.items()):
             selected={}
             for offset in (-1,-.5,.5,1,2,3):
@@ -87,18 +139,14 @@ def main():
                 if any(q is not b and q.get('kit')=='orange' and q.get('box') and iou(q['box'],b['box'])>.2 for q in r['tracks']):continue
                 selected[r['frame']]=row
             for r,b in selected.values():
-                cap.set(cv2.CAP_PROP_POS_FRAMES,r['frame']);ok,img=cap.read()
-                if not ok:continue
-                x1,y1,x2,y2=map(round,b['box']);im=img[max(0,y1):y2,max(0,x1):x2];h,w=im.shape[:2]
-                if not h or not w:continue
-                top=int(h*.08);torso=im[top:int(h*.62)];scale=max(3,min(5,240/max(torso.shape[0],1)));torso=cv2.resize(torso,None,fx=scale,fy=scale)
-                for box,text,score in reader.readtext(torso,detail=1,allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',text_threshold=.4,low_text=.25,link_threshold=.25,canvas_size=640,mag_ratio=1):
-                    token=re.sub('[^a-zA-Z0-9]','',text);ys=[p[1]/scale+top for p in box];rh=(max(ys)-min(ys))/h;ry=sum(ys)/4/h
-                    if token.isdigit() and score>=.8 and .08<=rh<=.3 and .17<ry<.58:
-                        v={'text':token,'score':float(score),'time':r['time'],'frame':r['frame'],'localized':True,'source':'local_dorsal_recheck'};rechecks.append({'track_id':b['id'],'readings':[v]})
+                found,reused=cached_recheck(observations,r,b,read);rechecks.extend(found)
+                cache_stats['reused_observations' if reused else 'read_observations']+=1
+            write_json(cache_path,{'fingerprint':fingerprint,'observations':observations})
             print(json.dumps({'stage':'dorsal_guard','done':i+1,'total':len(triggers)}),flush=True)
-        cap.release();attach_readings(records,rechecks);write_json(CACHE/'dorsal-guard-rechecks.json',rechecks)
+        if cap is not None:cap.release()
+        attach_readings(records,rechecks);write_json(CACHE/'dorsal-guard-rechecks.json',rechecks)
     quality=apply_guard(records);write_json(Path(args.output) if args.output else path,records)
+    quality['ocr_cache']=cache_stats
     context_path=CACHE/'recovery-v5/identity-contexts.json'
     if context_path.exists():
         public=json.loads(context_path.read_text(encoding='utf8'));bycid={b.get('person_track_id'):b for r in records for b in r['tracks']}
