@@ -1,0 +1,10 @@
+{
+  "status": "pending_originals_and_verified_annotations",
+  "base_commit": "b97c6e21a01f48b65d626a0dc501575fb472e951",
+  "round": 4,
+  "half": 1,
+  "video_sha256": null,
+  "annotations_sha256": null,
+  "runtime_seconds": null,
+  "metrics": null
+}
