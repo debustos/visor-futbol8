@@ -9,10 +9,11 @@ from f8.campo.goal_geometry import GoalImageTracker,mouth_point,approach_proposa
 from f8.campo.proyeccion import project;from f8.core.io import write_json
 from f8.core.runtime_context import ROOT,CACHE,SOURCE
 from f8.core.paths import PACKAGE_DIR
+from f8.acciones.video_time import candidate_windows,merge_windows,presentation_time
 
 
-def search_windows(records,duration):
-    intervals=[]
+def search_windows(records,duration,temporal=()):
+    intervals=candidate_windows(temporal,duration)
     for r in records:
         b=r.get('ball')
         if not b or not b.get('center') or b.get('confidence',0)<.4:continue
@@ -27,29 +28,28 @@ def search_windows(records,duration):
             width=np.linalg.norm(seed[1]-seed[0])
             if 80<=width<=1200 and np.linalg.norm(np.array(b['center'])-seed.mean(axis=0))<width*2.2:near=True
         if near:intervals.append([max(0,r['time']-.6),min(duration,r['time']+.6)])
-    merged=[]
-    for a,b in intervals:
-        if merged and a<=merged[-1][1]+.2:merged[-1][1]=max(b,merged[-1][1])
-        else:merged.append([a,b])
-    return merged
+    return merge_windows(intervals)
 
 
 def analyze(records,cap,fps,windows):
     times=[r['time'] for r in records];samples={0:[],100:[]};examined=0;cached_frames=0
-    stat=Path(SOURCE).stat();signature={'source':str(Path(SOURCE).resolve()),'size':stat.st_size,'mtime_ns':stat.st_mtime_ns,'code':hashlib.sha256((PACKAGE_DIR/'campo'/'goal_geometry.py').read_bytes()).hexdigest(),'views':hashlib.sha256((ROOT/'automatic/geometry-views.json').read_bytes()).hexdigest() if (ROOT/'automatic/geometry-views.json').exists() else None}
+    stat=Path(SOURCE).stat();signature={'source':str(Path(SOURCE).resolve()),'size':stat.st_size,'mtime_ns':stat.st_mtime_ns,'code':hashlib.sha256(b''.join(p.read_bytes() for p in [PACKAGE_DIR/'campo/goal_geometry.py',Path(__file__),PACKAGE_DIR/'acciones/video_time.py'])).hexdigest(),'views':hashlib.sha256((ROOT/'automatic/geometry-views.json').read_bytes()).hexdigest() if (ROOT/'automatic/geometry-views.json').exists() else None}
     cache=CACHE/'goal-mouth-views-v11.json';stored=json.loads(cache.read_text(encoding='utf8')) if cache.exists() else {};views=stored.get('views',{}) if stored.get('signature')==signature else {}
     for a,b in windows:
-        trackers={e:GoalImageTracker(e) for e in samples};cap.set(cv2.CAP_PROP_POS_FRAMES,round(a*fps))
-        for frame in range(round(a*fps),min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-1,round(b*fps))+1):
+        trackers={e:GoalImageTracker(e) for e in samples};cap.set(cv2.CAP_PROP_POS_MSEC,a*1000);previous=None
+        while cap.grab():
+            t=presentation_time(cap,previous);previous=t
+            if t>b:break
+            if t<a:continue
+            frame=int(cap.get(cv2.CAP_PROP_POS_FRAMES))-1
+            if frame%3:continue
             key=str(frame);known=key in views
-            if known or frame%3:
-                if not cap.grab():raise RuntimeError(f'No se puede decodificar el fotograma {frame}')
-                if frame%3:continue
+            if known:
                 img=None;cached_frames+=1
             else:
-                ok,img=cap.read()
+                ok,img=cap.retrieve()
                 if not ok:raise RuntimeError(f'No se puede decodificar el fotograma {frame}')
-            t=frame/fps;k=bisect_left(times,t);near=min(records[max(0,k-1):min(len(records),k+1)],key=lambda r:abs(r['time']-t));C=recover_matrix(near);examined+=1
+            k=bisect_left(times,t);near=min(records[max(0,k-1):min(len(records),k+1)],key=lambda r:abs(r['time']-t),default=None);C=recover_matrix(near) if near and abs(near['time']-t)<=.2 else None;examined+=1
             measured={}
             for end,tracker in trackers.items():
                 goal=views[key].get(str(end)) if known else tracker.update(img,t,C)
@@ -72,5 +72,8 @@ def analyze(records,cap,fps,windows):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--records',default=str(CACHE/'recovery-v5/records-v5.json'));p.add_argument('--windows');p.add_argument('--output',default=str(ROOT/'automatic/visual-shot-candidates.json'));p.add_argument('--quality',default=str(ROOT/'automatic/visual-shot-quality.json'));args=p.parse_args()
-    metadata=json.loads((ROOT/'automatic/metadata.json').read_text(encoding='utf8'));windows=json.loads(Path(args.windows).read_text(encoding='utf8')) if args.windows else search_windows(iter_records(args.records),metadata['duration']);rows=[r for r in iter_records(args.records) if any(a-.2<=r['time']<=b+.2 for a,b in windows)];cap=cv2.VideoCapture(SOURCE);started=time.monotonic();events,q=analyze(rows,cap,metadata['source_fps'],windows);cap.release();q.update(version=11,proposals=len(events),source=SOURCE,source_key=metadata.get('source_key'),run_seconds=round(time.monotonic()-started,2));write_json(Path(args.output),events);write_json(Path(args.quality),q);print(json.dumps(q),flush=True)
+    metadata=json.loads((ROOT/'automatic/metadata.json').read_text(encoding='utf8'));temporal_file=ROOT/'automatic/temporal-candidates.json';temporal=json.loads(temporal_file.read_text(encoding='utf8')) if temporal_file.exists() else [];windows=merge_windows(json.loads(Path(args.windows).read_text(encoding='utf8'))) if args.windows else search_windows(iter_records(args.records),metadata['duration'],temporal);rows=[r for r in iter_records(args.records) if any(a-.2<=r['time']<=b+.2 for a,b in windows)];cap=cv2.VideoCapture(SOURCE);started=time.monotonic()
+    try:events,q=analyze(rows,cap,metadata['source_fps'],windows)
+    finally:cap.release()
+    q.update(version=12,proposals=len(events),source=SOURCE,source_key=metadata.get('source_key'),timestamp_basis='source_presentation_time',run_seconds=round(time.monotonic()-started,2));write_json(Path(args.output),events);write_json(Path(args.quality),q);print(json.dumps(q),flush=True)
 if __name__=='__main__':main()
