@@ -2,21 +2,17 @@
 from collections import defaultdict
 import hashlib, numpy as np
 from f8.core.metricas import METRIC_MAP
+from f8.acciones.proposal_review import checked_proposals,review_proposals,complementary_evidence
 
-def event_id(e):return hashlib.sha256(f"{e['kind']}:{e.get('source_track')}:{e.get('target_track')}:{e['time']:.3f}".encode()).hexdigest()[:20]
+def event_id(e):
+    key=f"{e['kind']}:{e.get('source_track')}:{e.get('target_track')}:{e['time']:.3f}"
+    if e.get('goal_end') is not None:key+=f":goal_end={e['goal_end']}"
+    return hashlib.sha256(key.encode()).hexdigest()[:20]
 
 def temporal_shot_proposals(temporal):
-    """One proposal per shot window; retain the strongest class and all evidence."""
-    other=[dict(e) for e in temporal if e['class'] not in ('Shots on target','Shots off target')]
-    groups=[]
-    for e in sorted((e for e in temporal if e['class'] in ('Shots on target','Shots off target')),key=lambda e:e['time']):
-        if groups and e['time']-groups[-1][0]['time']<.7:groups[-1].append(e)
-        else:groups.append([e])
-    for group in groups:
-        winner=dict(max(group,key=lambda e:e['score']))
-        winner['temporal_evidence']=[{'class':e['class'],'score':e['score'],'time':e['time']} for e in group]
-        other.append(winner)
-    return sorted(other,key=lambda e:e['time'])
+    """Group compatible shot/goal evidence, preserving distinct nearby actions."""
+    valid,_=checked_proposals(temporal)
+    return review_proposals(valid)
 
 def released_actor(contacts,records,time,offsets):
     """Attribute a proposal only to a measured contact followed by ball release.
@@ -49,26 +45,31 @@ def released_actor(contacts,records,time,offsets):
         candidates.append((ep,{'contact_time':t0,'release_samples':len(points),'screen_travel_pixels':round(length,2),'source_context_id':ep['actor'].get('person_track_id')}))
     if len(candidates)!=1:return {},{'state':'ambiguous' if candidates else 'unobserved','candidate_actors':len(candidates)}
     ep,evidence=candidates[0]
-    return ep['actor'],{'state':'measured_release',**evidence}
+    actor=dict(ep['actor'])
+    if ep.get('contact_identity_evidence'):actor['player_id']=None
+    return actor,{'state':'measured_release',**evidence}
 
 def sequence_actions(records, temporal, short_contacts=False):
     from f8.acciones.pass_engine import transfer_events,pass_summary
-    events,contacts,transitions=transfer_events(records,temporal,short_contacts)
+    valid,rejected=checked_proposals(temporal)
+    events,contacts,transitions=transfer_events(records,valid,short_contacts)
     from f8.identidad.identity_recovery import camera_offsets
     offsets=camera_offsets(records)
     # Temporal classifications propose actions; causal release is required for an actor.
-    for e in temporal_shot_proposals(temporal):
+    for e in review_proposals(valid):
         klass=e['class']
         if klass not in ('Goal','Shots on target','Shots off target','Foul','Visual goal approach'):continue
-        before=[ep for ep in contacts if -0.15<=e['time']-ep['last']['time']<=1.8]
-        ep=min(before,key=lambda p:abs(e['time']-p['last']['time'])) if before else None
-        if klass=='Foul':actor=ep['actor'] if ep else {};release={'state':'not_applicable'}
+        if klass=='Foul':actor={};release={'state':'unobserved','reason':'Contact or possession cannot establish who committed or received a foul'}
         else:actor,release=released_actor(contacts,records,e['time'],offsets)
-        pid=actor.get('player_id')
-        kind='goal' if klass=='Goal' else 'shot' if 'Shots' in klass or klass=='Visual goal approach' else 'foul_won' if actor.get('kit') in ('orange','keeper') else 'foul_committed'
-        if klass in ('Goal','Shots on target','Shots off target','Visual goal approach') and actor.get('kit')=='opponent':continue
-        events.append({'time':e['time'],'kind':kind,'player_id':pid,'state':'candidate','outcome':'goal' if kind=='goal' else 'off_target' if klass=='Shots off target' else 'unknown','score':e['score'],'source_track':actor.get('id'),'team':'orange' if actor.get('kit') in ('orange','keeper') else 'unresolved','actor_evidence':release,'visual_evidence':e if klass=='Visual goal approach' else None,'temporal_evidence':e.get('temporal_evidence',[{'class':klass,'score':e['score'],'time':e['time']}]),'evidence_start':max(0,e['time']-3),'evidence_end':e['time']+3,'method':'Vuelo medido hacia postes visibles; requiere verificar intención y jugador' if klass=='Visual goal approach' else 'Propuesta temporal y contacto previo; requiere verificar intención o decisión arbitral','reason':'Jugador o acción sin resolver' if not pid else 'Propuesta temporal sin validar'})
-    for shot in [e for e in events if e['kind'] in ('shot','goal') and e.get('player_id')]:
+        team='orange' if actor.get('kit') in ('orange','keeper') else 'opponent' if actor.get('kit')=='opponent' else 'unresolved'
+        pid=actor.get('player_id') if team=='orange' else None
+        kind='goal' if klass=='Goal' else 'shot' if 'Shots' in klass or klass=='Visual goal approach' else 'foul_committed'
+        members=e.get('proposal_evidence',[e]);visual=[q for q in members if q['class']=='Visual goal approach']
+        event={'time':e['time'],'kind':kind,'player_id':pid,'state':'candidate','outcome':'goal' if kind=='goal' else 'off_target' if klass=='Shots off target' else 'unknown','score':e['score'],'source_track':actor.get('id'),'team':team,'actor_evidence':release,'visual_evidence':visual[0] if visual else None,'temporal_evidence':e.get('temporal_evidence',[{'class':klass,'score':e['score'],'time':e['time']}]),'proposal_evidence':members,'complementary_evidence':complementary_evidence(e,valid),'evidence_start':e['evidence_start'],'evidence_end':e['evidence_end'],'method':'Propuesta de acción; resultado, equipo, autor y decisión arbitral requieren revisión independiente','reason':'Jugador o acción sin resolver' if not pid else 'Propuesta temporal sin validar','event_validation':'pending','outcome_validation':'pending'}
+        if visual:event['goal_end']=visual[0].get('goal_end')
+        if klass=='Foul':event.update(foul_role=None,committed_by=None,received_by=None,decision_state='pending')
+        events.append(event)
+    for shot in [e for e in events if e['kind'] in ('shot','goal') and e.get('player_id') and e.get('team')=='orange']:
         passes=[e for e in events if e['kind']=='pass' and e.get('receiver_id')==shot['player_id'] and 0<=shot['time']-e['time']<=6]
         if not passes:continue
         p=max(passes,key=lambda e:e['time'])
@@ -89,6 +90,6 @@ def sequence_actions(records, temporal, short_contacts=False):
                 events.append({'time':first['time'],'kind':'dribble','player_id':z['player_id'],'source_track':z['id'],'state':'candidate','outcome':'success','score':min(first['ball']['confidence'],last['ball']['confidence']),'evidence_start':max(0,first['time']-1),'evidence_end':last['time']+1,'method':'Control sostenido y avance relativo más allá de un rival; revisión necesaria'});break
     dedup=[]
     for e in sorted(events,key=lambda e:e['time']):
-        if any(q['kind']==e['kind'] and q.get('player_id')==e.get('player_id') and q.get('source_track')==e.get('source_track') and abs(q['time']-e['time'])<.7 for q in dedup):continue
+        if 'proposal_evidence' not in e and any(q['kind']==e['kind'] and q.get('player_id')==e.get('player_id') and q.get('source_track')==e.get('source_track') and abs(q['time']-e['time'])<.7 for q in dedup):continue
         e['id']=event_id(e);dedup.append(e)
-    return dedup,{'version':11,'passes':pass_summary(dedup),'controlled_episodes':len(contacts),'transitions':len(transitions),'travel_supported_transitions':sum(t['travel_verified'] for t in transitions),'state_machine':['contact','release','travel','reception'],'short_contacts_enabled':short_contacts,'single_touch_contacts':sum(len(ep['rows'])==1 for ep in contacts),'scope':'Measured contact, travel and reception rules. Partial automatically detected actions; not certified match totals.'}
+    return dedup,{'version':12,'rejected_proposals':rejected,'passes':pass_summary(dedup),'controlled_episodes':len(contacts),'transitions':len(transitions),'travel_supported_transitions':sum(t['travel_verified'] for t in transitions),'state_machine':['contact','release','travel','reception'],'short_contacts_enabled':short_contacts,'single_touch_contacts':sum(len(ep['rows'])==1 for ep in contacts),'scope':'Measured contact, travel and reception rules. Partial automatically detected actions; not certified match totals.'}

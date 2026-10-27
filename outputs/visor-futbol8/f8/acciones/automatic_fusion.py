@@ -14,22 +14,11 @@ def enrich(records,events,temporal):
         if not ranked or len(ranked[0])<2:return None
         if len(ranked)>1 and len(ranked[0])-len(ranked[1])<2:return None
         return ranked[0][-1]
-    for event in temporal:
-        label=event['class'];t=event['time'];actor=stable_actor(t);kind=None;player=None
-        if label in ('Goal','Shots on target','Shots off target'):
-            kind='goal' if label=='Goal' else 'shot'
-            if actor and actor[1].get('player_id'):player=actor[1]['player_id']
-        elif label=='Foul' and actor:
-            r,owner=actor
-            if owner.get('position') is not None:
-                opponents=[b for b in r['tracks'] if b['position'] is not None and b['kit'] in ('orange','opponent') and b['kit']!=owner['kit']]
-                opponents.sort(key=lambda b:np.linalg.norm(np.array(b['position'])-owner['position']))
-                if opponents and np.linalg.norm(np.array(opponents[0]['position'])-owner['position'])<5:
-                    if owner.get('player_id'):kind='foul_won';player=owner['player_id']
-                    elif opponents[0].get('player_id'):kind='foul_committed';player=opponents[0]['player_id']
-        if kind and player:
-            events.append({'time':t,'player_id':player,'kind':kind,'outcome':'goal' if kind=='goal' else 'unknown','state':'candidate','score':event['score'],'evidence_start':max(0,t-3),'evidence_end':t+3,'method':'Temporal event model plus ball-owner proximity. Actor and event require independent validation.'})
-        elif label in ('Goal','Shots on target','Shots off target','Foul','Substitution'):ambiguous.append({**event,'reason':'No stable, unique player attribution'})
+    from f8.acciones.sequence_engine import sequence_actions
+    proposals,quality=sequence_actions(records,temporal)
+    events.extend(e for e in proposals if 'proposal_evidence' in e)
+    ambiguous.extend(quality['rejected_proposals'])
+    ambiguous.extend({**e,'reason':'Substitution requires independent review'} for e in temporal if e['class']=='Substitution')
     # Evidence-supported dribble candidates: same owner around a close encounter, separated after one second.
     used={}
     for index,r in enumerate(records):
@@ -49,6 +38,7 @@ def enrich(records,events,temporal):
     goals=[e for e in events if e['kind']=='goal']
     shots=[e for e in events if e['kind'] in ('shot','goal')]
     for shot in shots:
+        if not shot.get('player_id') or shot.get('team')!='orange':continue
         passes=[e for e in events if e['kind']=='pass' and e.get('receiver_id')==shot['player_id'] and 0<=shot['time']-e['time']<=6]
         if not passes:continue
         p=max(passes,key=lambda e:e['time'])
@@ -60,7 +50,7 @@ def enrich(records,events,temporal):
     # Limit repeated temporal proposals of the same metric and actor to one per four-second neighborhood.
     result=[]
     for e in sorted(events,key=lambda e:e['time']):
-        if any(v['player_id']==e['player_id'] and v['kind']==e['kind'] and abs(v['time']-e['time'])<2 for v in result):continue
+        if 'proposal_evidence' not in e and any(v['player_id']==e['player_id'] and v['kind']==e['kind'] and abs(v['time']-e['time'])<2 for v in result):continue
         result.append(e)
     return result,ambiguous
 
