@@ -37,13 +37,16 @@ class MeasuredBallTracker:
     def predict(self,img,time):
         self.prediction_time=time;self.prediction_value=None
         dt=time-self.time if self.time is not None else 0
-        backward=camera_step(self.previous_image,img) if self.previous_image is not None and 0<dt<=.12 else None
+        self.last_camera=None
+        # Camera registration only moves an existing search center. Without a
+        # measured seed (or across a time gap) update() must reacquire instead.
+        if self.ball is None or not 0<dt<=.12:return None
+        backward=camera_step(self.previous_image,img) if self.previous_image is not None else None
         H=None
         if backward is not None:
             try:H=np.linalg.inv(backward)
             except np.linalg.LinAlgError:pass
         self.last_camera=H
-        if self.ball is None or not 0<dt<=.12:return None
         self.prediction_value=map_point(H,self.search_center)+self.velocity*dt
         return self.prediction_value
     def update(self,img,time,candidates,C=None,prediction=None):

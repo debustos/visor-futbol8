@@ -1,0 +1,29 @@
+{
+  "video": "PRIMERA PARTE.MP4",
+  "video_sha256": "2e00490f64f6f19b6d9682059425f91e17379dc57f6a3408743b60749d729331",
+  "annotation_source": "Assistant visual inspection of original frames and adjacent frames, not yet reviewed by a human. Seven uncertain frames are excluded. No annotated invisible negatives; this small sample does not establish general sports accuracy.",
+  "policy": "Disjoint sequences fixed before the change. Labels use original 1920x1080 pixels; unknown is excluded, null center means not visible. No detector tuning on holdout.",
+  "windows": [
+    {"id": "development-contact", "split": "development", "start": 60, "end": 60.8, "labels": [
+      {"frame": 1800, "unknown": true}, {"frame": 1806, "unknown": true},
+      {"frame": 1812, "unknown": true}, {"frame": 1818, "unknown": true}
+    ]},
+    {"id": "development-goal", "split": "development", "start": 943.6, "end": 944.4, "labels": [
+      {"frame": 28303, "unknown": true}, {"frame": 28309, "unknown": true},
+      {"frame": 28315, "center": [982, 613], "tolerance_pixels": 12},
+      {"frame": 28321, "unknown": true}
+    ]},
+    {"id": "holdout-sideline", "split": "holdout", "start": 300, "end": 300.8, "labels": [
+      {"frame": 8998, "center": [1645, 432], "tolerance_pixels": 12},
+      {"frame": 9004, "center": [1638, 428], "tolerance_pixels": 12},
+      {"frame": 9010, "center": [1573, 357], "tolerance_pixels": 12},
+      {"frame": 9016, "center": [1493, 305], "tolerance_pixels": 12}
+    ]},
+    {"id": "holdout-goal-area", "split": "holdout", "start": 1200, "end": 1200.8, "labels": [
+      {"frame": 35993, "center": [519, 550], "tolerance_pixels": 12},
+      {"frame": 35999, "center": [449, 565], "tolerance_pixels": 12},
+      {"frame": 36005, "center": [342, 576], "tolerance_pixels": 12},
+      {"frame": 36011, "center": [236, 585], "tolerance_pixels": 12}
+    ]}
+  ]
+}

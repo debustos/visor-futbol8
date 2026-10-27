@@ -1,0 +1,13 @@
+{
+  "video": "PRIMERA PARTE.MP4",
+  "video_sha256": "2e00490f64f6f19b6d9682059425f91e17379dc57f6a3408743b60749d729331",
+  "annotation_source": "Assistant visual inspection, pending human review. Added before measuring this interval to cover the actual arrival at goal. Same development sequence as development-goal; never part of holdout. Last frame uncertain and excluded.",
+  "windows": [
+    {"id": "development-arrival", "split": "development", "start": 944.6, "end": 945.2, "labels": [
+      {"frame": 28333, "center": [822, 583], "tolerance_pixels": 12},
+      {"frame": 28339, "center": [747, 554], "tolerance_pixels": 12},
+      {"frame": 28345, "center": [734, 539], "tolerance_pixels": 12},
+      {"frame": 28351, "unknown": true}
+    ]}
+  ]
+}
