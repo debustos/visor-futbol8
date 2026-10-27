@@ -1,10 +1,18 @@
 {
-  "status": "pending_originals_and_verified_annotations",
-  "base_commit": "b97c6e21a01f48b65d626a0dc501575fb472e951",
-  "round": 4,
+  "status": "pending_continuous_review_and_detector_outputs",
+  "base_commit": "bec337ed23e11e26e0827e52bcd75c7b82f2f12c",
+  "round": 2,
   "half": 1,
-  "video_sha256": null,
+  "video_sha256": "2e00490f64f6f19b6d9682059425f91e17379dc57f6a3408743b60749d729331",
   "annotations_sha256": null,
   "runtime_seconds": null,
-  "metrics": null
+  "metrics": null,
+  "parts": [
+    {"half": 1, "video_sha256": "2e00490f64f6f19b6d9682059425f91e17379dc57f6a3408743b60749d729331", "annotations_sha256": null, "reviewed_seconds": 0, "duration_seconds": 1468.6466666666668, "metrics": null},
+    {"half": 2, "video_sha256": "42b2381e85fb6a090942827eb99fd7990bc625f104e8cacc65d3424d3710eedf", "annotations_sha256": null, "reviewed_seconds": 0, "duration_seconds": 1516.3183333333334, "metrics": null}
+  ],
+  "comparison": null,
+  "preparation_report": "S:/visor-futbol8/work/evaluacion-j2/preparacion-inicial-20261027/preparacion.json",
+  "preparation_seconds": 5.3990248999980395,
+  "reason": "El usuario cambia el objetivo a J2. Ambos originales comprobados por SHA-256 y seis fotogramas de cada uno. No hay acciones/perfiles en sus raíces registradas. Pendientes revisión continua y salidas del detector. Cero segundos revisados; no se han creado anotaciones deportivas."
 }
